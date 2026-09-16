@@ -2,7 +2,7 @@
 -- wacrm schema, relocated to `wa`.
 --
 -- GENERATED — do not hand-edit. Regenerate with
--- scripts/generate-wa-schema.sh (see docs/wacrm-merge-plan.md §5.1).
+-- scripts/wa-schema/generate.sh (see docs/wacrm-merge-plan.md §5.1).
 --
 -- Source: wacrm's 42 migrations (001-042) applied to a clean Postgres,
 -- then dumped. The dump is the ground truth, not the migration history:
