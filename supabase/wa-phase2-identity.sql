@@ -1,8 +1,10 @@
 -- ============================================================
 -- Phase 2 — one signup path, and the accounts ↔ businesses bridge.
 --
--- Hand-written (unlike wa-schema.generated.sql). Applied after it.
--- See docs/wacrm-merge-plan.md §3.2, §3.3, §6.
+-- Hand-written (unlike the generated wacrm schema). Applied after it.
+-- Maintained in the wacrm repo (YossiDavid/wacrm) as
+-- supabase/wa-phase2-identity.sql and copied here; the plan it implements
+-- is docs/wacrm-merge-plan.md §3.2, §3.3 and §6 in that repo.
 --
 -- Idempotent: safe to re-run.
 -- ============================================================
