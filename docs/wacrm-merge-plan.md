@@ -15,9 +15,24 @@
 **לא ממזגים קוד. ממזגים דאטהבייס.**
 
 - wacrm נשאר **ריפו נפרד ואפליקציה נפרדת** שמתפרסת בנפרד.
-- שתי המערכות חולקות **פרויקט Supabase אחד** — זה של Cortex.
+- שתי המערכות חולקות **פרויקט Supabase אחד** — זה של Cortex
+  (`yfsfgvftdujteyddlviu`, eu-central-1, Postgres 17).
 - טבלאות wacrm חיות ב-**schema ייעודי `wa`**, לא ב-`public`.
-- הגשר העסקי היחיד: `wa.contacts.customer_id → public.customers.id`.
+- הגשר העסקי: `wa.contacts.customer_id → public.customers.id`.
+
+### מה הכריע לטובת DB משותף ולא אינטגרציה בין שני מסדים
+
+נשקלה חלופה של שני פרויקטי Supabase נפרדים שמדברים ב-HTTP (wacrm כבר מכיל את שני
+הרכיבים לכך: טריגר `new_contact_created` ופעולת `send_webhook` במנוע האוטומציות, ועוד
+API ציבורי `/api/v1`). היא זולה יותר לבנייה — יום-יומיים מול 5–8 — אבל נפסלה:
+
+1. **עלות.** ארגון SHOS על תוכנית Pro. פרויקט פעיל נוסף מוסיף חיוב compute מעבר לקרדיט
+   הכלול, כל חודש, לנצח. הפער מול ימי הפיתוח נסגר תוך שנה.
+2. **הדרישה עצמה.** כפתור "הוספת ליד" שמחזיר את פרטי הליד וקישור אליו (פרק 7) הוא
+   read-after-write סינכרוני. מעל HTTP בין שני מסדים זה דורש טיפול בכשל חלקי; באותו DB
+   זו קריאת RPC אחת אטומית.
+3. **`customer_id` בלי FK.** בשני מסדים זה UUID מצביע בלי שלמות רפרנציאלית — לקוח שנמחק
+   ב-Cortex משאיר אנשי קשר שמצביעים לשום מקום.
 
 ### למה כך ולא מיזוג קוד
 
@@ -174,9 +189,24 @@ RLS ב-Cortex עומד היום על `is_business_member(business_id)`. ברגע
 1. `git remote add upstream https://github.com/ArnasDon/wacrm` בריפו הזה (היום יש `origin` בלבד).
 2. גיבוי מלא של פרויקט ה-Supabase של Cortex — `supabase db dump` + snapshot מהקונסולה.
 3. ענף עבודה בשני הריפואים. שום דבר לא נוגע ב-production עד ה-checkpoint של Phase 2.
-4. להקים Supabase local נקי עם מיגרציות Cortex בלבד (חוק ברזל #6: local-first).
+4. **ענף Supabase (preview branch)** — לא Supabase מקומי.
 
-**Checkpoint:** `supabase db reset` מקומי עובר נקי על Cortex לבדו.
+### על local-first (חוק ברזל #6)
+
+קובץ המיגרציה זהה בשני המסלולים; מקומי לא משנה מה נשלח לפרודקשן, הוא רק חזרה גנרלית.
+אבל למיגרציה **הזו** חזרה גנרלית היא חובה, בגלל התנגשות `handle_new_user` (סעיף 3.2):
+אם היא נשברת בפרודקשן זה קורה **בשקט** — הרשמות ממשיכות להצליח, פשוט בלי לייצר `accounts`,
+ומגלים את זה ימים אחר כך.
+
+ארגון SHOS על Pro, כלומר **Supabase branching זמין**. ענף preview נותן בדיוק את החזרה
+הגנרלית — DB ענני זמני עם כל המיגרציות מורצות עליו, בלי Docker ובלי סטאק מקומי — ואז
+`merge` לפרודקשן. זה מספק את הכוונה של חוק #6 בלי הטקס שלו.
+
+**לעדכן את `CLAUDE.md` של Cortex בהתאם** — להחליף "Supabase local + Docker" ב"ענף preview
+או local, לפי העדפה; העיקרון שנשמר הוא שלא נוגעים בסכמת פרודקשן בזמן איטרציה". אחרת כל
+סשן עתידי יתווכח על זה מחדש.
+
+**Checkpoint:** ענף preview עולה נקי עם מיגרציות Cortex בלבד.
 
 ---
 
@@ -187,7 +217,7 @@ RLS ב-Cortex עומד היום על `is_business_member(business_id)`. ברגע
 המיגרציות של wacrm הן היסטוריה מתפתחת — `017` מוחקת ובונה מחדש כמעט כל policy מ-`001`.
 לשחזר את הרצף הזה לתוך schema אחר זה מתכון לבאגים. במקום:
 
-1. להריץ את כל 42 המיגרציות על DB נקי מקומי (ל-`public`, כרגיל).
+1. להריץ את כל 42 המיגרציות על DB נקי (ענף preview, ל-`public`, כרגיל).
 2. `supabase db dump --schema public --data=false` ← הסכמה הסופית בלבד.
 3. סקריפט המרה: `public.` → `wa.` בכל הטבלאות/פונקציות/policies שמקורן ב-wacrm.
 4. לשמור כמיגרציה **אחת** בריפו של Cortex: `supabase/migrations/2026MMDD000000_wacrm_schema.sql`
@@ -234,21 +264,91 @@ RLS ב-Cortex עומד היום על `is_business_member(business_id)`. ברגע
 
 ---
 
-## 7. Phase 3 — הקישור העסקי
+## 7. Phase 3 — כפתור "הוספת ליד" והקישור העסקי
 
-זה הרגע שבו המהלך מחזיר את ההשקעה.
+זה הרגע שבו המהלך מחזיר את ההשקעה, וזו הדרישה שהניעה את כל התוכנית.
 
-1. `alter table wa.contacts add column customer_id uuid references public.customers(id) on delete set null`.
-2. התאמה ראשונית לפי טלפון: `wa.contacts.phone` מול `public.customers.phone` — נרמול
-   לפורמט E.164 קודם. התאמות מרובות/מעורפלות מסומנות לסקירה ידנית, לא נפתרות אוטומטית.
-3. UI ב-wacrm: על כרטיס איש קשר — "לקוח ב-Cortex", עם קישור.
-4. UI ב-Cortex: על כרטיס לקוח — שיחת WhatsApp אחרונה + קישור ל-Inbox.
-5. אופציונלי: view ב-`public` שמשטח שיחות אחרונות לפי לקוח, לצריכה מ-`apps/web`.
+### 7.1 התנהגות
 
-סעיפים 3–4 הם השינויים הראשונים שיוצרים חיכוך מול upstream. לשמור אותם מצומצמים ומופרדים
-לקומפוננטות ייעודיות, לא פזורים בתוך קבצים שמגיעים מ-upstream.
+כפתור **"הוספת ליד"** בראש הצ'אט ב-Inbox (ה-header ב-`src/components/inbox/message-thread.tsx`,
+לצד כפתורי הרענון והחזרה הקיימים).
 
-**Checkpoint:** מלקוח ב-Cortex אפשר להגיע לשיחת ה-WhatsApp שלו, ולהפך.
+- `contacts.customer_id IS NULL` ⇒ מוצג כפתור "הוספת ליד".
+- אחרי לחיצה ⇒ הכפתור מתחלף בצ'יפ "ליד: ‹שם› ↗" שמקשר לכרטיס הלקוח ב-Cortex,
+  ו-toast מציג את הפרטים שחזרו.
+- `customer_id` כבר מאוכלס ⇒ הצ'יפ מוצג מלכתחילה.
+
+**יצירת ליד היא ידנית בלבד.** אין יצירה אוטומטית מהודעה נכנסת — מה שמייתר לגמרי את שאלת
+הספאם/ספקים/טעויות-חיוג, ומייתר גם את מסלול האוטומציה + `send_webhook` שנשקל בתחילה.
+
+### 7.2 המימוש — RPC אחד, לא שתי כתיבות
+
+הקליינט של wacrm מוצמד ל-schema `wa` (סעיף 3.1), אז כתיבה ל-`public.customers` דרכו הייתה
+דורשת קליינט שני. במקום זה — פונקציה אחת:
+
+```sql
+create function wa.promote_contact_to_lead(p_contact_id uuid)
+returns jsonb
+language plpgsql security definer set search_path = wa, public as $$
+  -- 1. אימות הרשאה: is_account_member(contact.account_id, 'agent')
+  -- 2. אידמפוטנטיות: אם customer_id כבר קיים — להחזיר אותו, לא ליצור חדש
+  -- 3. התאמה לקוח קיים לפי טלפון מנורמל (E.164) לפני יצירה —
+  --    לקוח ותיק שכותב בוואטסאפ לא אמור להיווצר מחדש כליד
+  -- 4. אחרת: insert into public.customers
+  --      (business_id ← wa.accounts.business_id, name, phone,
+  --       status='lead', source='whatsapp')
+  -- 5. update wa.contacts set customer_id = ...
+  -- 6. insert into public.client_communications
+  --      (type='whatsapp', summary='ליד נוצר משיחת וואטסאפ', occurred_at=now())
+  -- 7. return jsonb_build_object('customer_id', ..., 'name', ..., 'status', ...)
+$$;
+```
+
+הכל בטרנזקציה אחת. ה-route ב-wacrm הוא עטיפה דקה שקוראת ל-RPC ומרכיבה את ה-URL
+לכרטיס הלקוח ב-Cortex מ-env var.
+
+### 7.3 שני חסמים בסכמה של Cortex ⚠️
+
+שניהם ב-`public.client_communications`, ושניהם חוסמים את סעיף 6 לעיל:
+
+```sql
+type text not null check (type in ('email','call','meeting','note'))  -- אין 'whatsapp'
+created_by uuid not null references public.users(id)                   -- לא תמיד יש
+```
+
+- להוסיף `'whatsapp'` ל-CHECK.
+- `created_by`: בכפתור ידני יש משתמש מבצע, אז אפשר להשאיר NOT NULL — **בתנאי** שלמשתמש
+  יש שורה ב-`public.users`. הטריגר המאוחד מ-Phase 2 מבטיח את זה לנרשמים חדשים; למשתמשים
+  קיימים של wacrm צריך backfill חד-פעמי. אם תרצה בעתיד גם יצירה אוטומטית — יש להפוך
+  את העמודה ל-nullable.
+
+תלות: `wa.accounts.business_id` מ-Phase 2 חייב להיות מאוכלס, אחרת אין מה לשים ב-`customers.business_id`
+(NOT NULL).
+
+### 7.4 תיעוד תקשורתי
+
+**לא** לשכפל כל הודעה ל-`client_communications` — שיחה אחת תציף את ציר הזמן של הלקוח.
+במקום זה:
+
+- שורה אחת ב-`client_communications` ברגע יצירת הליד (סעיף 6 ב-RPC) — כדי שהציר יראה
+  "מאיפה הלקוח הזה הגיע".
+- **view** ב-`public` שמשטח את השיחה החיה מ-`wa.conversations`/`wa.messages` לפי
+  `customer_id`, ו-`apps/web` של Cortex קורא ממנו. אפס כפילות, היסטוריה מלאה, תמיד מעודכן.
+
+### 7.5 קישור רטרואקטיבי
+
+התאמה חד-פעמית של אנשי קשר קיימים: `wa.contacts.phone` מול `public.customers.phone`,
+אחרי נרמול ל-E.164. התאמות מרובות או מעורפלות **מסומנות לסקירה ידנית ולא נפתרות אוטומטית** —
+קישור שגוי בין איש קשר ללקוח גרוע מחוסר קישור.
+
+### 7.6 חיכוך מול upstream
+
+7.1 ו-7.4 הם השינויים הראשונים בקוד wacrm שאינם קונפיגורציה. לרכז אותם בקומפוננטה
+ובקובץ ייעודיים (`src/components/inbox/lead-button.tsx`, `src/app/api/crm/lead/route.ts`)
+ולגעת ב-`message-thread.tsx` בשורה אחת בלבד — כדי שמשיכה מ-upstream לא תתנגש.
+
+**Checkpoint:** לחיצה על הכפתור יוצרת ליד ב-Cortex, מחזירה פרטים וקישור עובד; לחיצה
+שנייה לא יוצרת כפילות; מכרטיס הלקוח ב-Cortex רואים את שיחת ה-WhatsApp.
 
 ---
 
@@ -273,6 +373,7 @@ RLS ב-Cortex עומד היום על `is_business_member(business_id)`. ברגע
 - אין החלפת שפת עיצוב.
 - אין מיזוג `contacts` ל-`customers`. הן ישויות שונות שמקושרות ב-FK.
 - אין הכרעה בכפילות ה-pipeline (סעיף 3.4).
+- אין יצירת ליד אוטומטית מהודעה נכנסת — רק הכפתור הידני (סעיף 7.1).
 
 ---
 
@@ -284,6 +385,7 @@ RLS ב-Cortex עומד היום על `is_business_member(business_id)`. ברגע
 | דליפת נתוני כספים לסוכני wacrm | **גבוהה** | סעיף 3.3 + בדיקת האבטחה ב-Phase 2 |
 | מיגרציות upstream דורשות המרה ידנית לנצח | בינונית | לתעד ב-`supabase/migrations/README`; לשקול סקריפט המרה אוטומטי אם התדירות מכבידה |
 | resource embedding חוצה-schema ב-PostgREST | בינונית | לאמת בפועל ב-Phase 1 לפני שבונים UI עליו |
+| `client_communications` חוסם `type='whatsapp'` ו-`created_by` | בינונית | סעיף 7.3 — שני `ALTER` + backfill |
 | `avatars` כשם דלי תפוס | נמוכה | לרשום ב-`CLAUDE.md` של Cortex |
 | service-role key משותף | נמוכה | ממילא לא יוצא מהשרת בשתי המערכות |
 
@@ -292,11 +394,11 @@ RLS ב-Cortex עומד היום על `is_business_member(business_id)`. ברגע
 ## 11. סדר עבודה מומלץ
 
 ```
-Phase 0  הכנות                   ~0.5 יום   ללא סיכון
-Phase 1  schema wa               ~2–3 ימים  הכל מקומי
-Phase 2  זהות מאוחדת + אבטחה     ~1–2 ימים  ← הנקודה שממנה חוזרים אחורה זה יקר
-Phase 3  קישור contacts↔customers ~1–2 ימים  ← כאן מגיע הערך
-Phase 4  deploy                   ~0.5 יום
+Phase 0  הכנות + ענף preview      ~0.5 יום   ללא סיכון
+Phase 1  schema wa                ~2–3 ימים  הכל על הענף
+Phase 2  זהות מאוחדת + אבטחה      ~1–2 ימים  ← הנקודה שממנה חוזרים אחורה זה יקר
+Phase 3  כפתור "הוספת ליד" + קישור ~1–2 ימים  ← כאן מגיע הערך
+Phase 4  deploy                    ~0.5 יום
 ```
 
 Phases 0–1 הפיכים לחלוטין. מ-Phase 2 והלאה נדרש גיבוי תקף לפני כל צעד.
