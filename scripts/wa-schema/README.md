@@ -58,3 +58,19 @@ maintenance debt of sharing a database; it is recorded in the plan.
   `search_path`.
 - `compare()` substitutes exactly one `%s`. A verification query with two
   compares nothing and reports a pass.
+
+## Phase 2
+
+`../../supabase/wa-phase2-identity.sql` is hand-written, applied after the
+generated schema, and holds the unified signup trigger plus the
+`accounts` ↔ `businesses` bridge.
+
+```bash
+./scripts/wa-schema/verify-phase2.sh ../cortex
+```
+
+Builds a clean database (Cortex + `wa` + Phase 2) and runs 19 checks: both
+halves of signup fire from one trigger, a wacrm signup gets no
+`business_members` row and `is_business_member()` stays false for it, signup
+survives one half failing, an email Cortex already holds is skipped rather
+than raising, and re-running everything is a no-op.
