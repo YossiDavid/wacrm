@@ -106,7 +106,11 @@ $PSQL -q -c 'drop database if exists wa_check;' -c 'create database wa_check;'
 apply_all wa_check "$HERE/harness.sql"
 if [[ -n "$CORTEX" ]]; then
   echo "    (alongside Cortex's schema)"
-  apply_all wa_check "$CORTEX"/supabase/migrations/*.sql
+  # Skip Cortex's copies of this schema: $OUT is applied on its own below,
+  # and applying both would collide on every object. The copies are what
+  # this script produces, so they are never the thing under test.
+  mapfile -t cortex_migrations < <(ls "$CORTEX"/supabase/migrations/*.sql | grep -v '_wacrm_')
+  apply_all wa_check "${cortex_migrations[@]}"
 fi
 apply_all wa_check "$OUT"
 

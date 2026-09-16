@@ -13,15 +13,19 @@ import re
 import sys
 
 # Objects that belong to an extension, not to wacrm. A blanket
-# public.* -> wa.* would break these. The target schema is wherever the
-# extension actually lives in the merged database, which is not the same
-# for both: Cortex's init_schema.sql already does
-# `create extension if not exists "uuid-ossp"` with no schema clause, so
-# uuid-ossp sits in public and moving it would disturb Cortex's own
-# defaults. pgvector is new to the merged database, so it goes where
-# Cortex's config.toml extra_search_path already points.
+# public.* -> wa.* would break these, and the target schema is wherever the
+# extension actually lives in the merged database.
+#
+# On Supabase that is `extensions` for both. The platform pre-installs
+# uuid-ossp there, so Cortex's `create extension if not exists "uuid-ossp"`
+# (no schema clause) is a no-op and never puts it in public. An earlier
+# version of this file mapped uuid_generate_v4 to public because the local
+# rehearsal harness did not pre-install it and Cortex's migration therefore
+# created it in public — the generated schema then failed on the real
+# project with `function public.uuid_generate_v4() does not exist`.
+# harness.sql now mirrors Supabase so the rehearsal cannot drift again.
 EXTENSION_OWNED = {
-    "uuid_generate_v4": "public",
+    "uuid_generate_v4": "extensions",
     "vector": "extensions",
     "vector_cosine_ops": "extensions",
 }
@@ -63,10 +67,10 @@ grant usage on schema wa to anon, authenticated, service_role;
 -- extra_search_path already lists it.
 create extension if not exists vector with schema extensions;
 
--- uuid-ossp is NOT created here: Cortex's init_schema.sql already installs
--- it into public. `if not exists` would silently ignore a schema clause
--- anyway, and relocating it could break Cortex's column defaults, so this
--- schema references public.uuid_generate_v4() where it actually lives.
+-- uuid-ossp is NOT created here: Supabase pre-installs it into `extensions`,
+-- which is why this schema calls extensions.uuid_generate_v4(). A bare
+-- `create extension if not exists` would be a no-op anyway and could not
+-- move it.
 
 """
 

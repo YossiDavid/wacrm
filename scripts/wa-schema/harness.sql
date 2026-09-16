@@ -47,7 +47,31 @@ alter table storage.objects enable row level security;
 create or replace function storage.foldername(name text) returns text[]
   language sql immutable as $$ select string_to_array(name, '/') $$;
 
+-- Supabase pre-installs these into `extensions`, so a migration's bare
+-- `create extension if not exists "uuid-ossp"` is a no-op there and the
+-- functions are NOT in public. Mirroring that here is what keeps the
+-- rehearsal honest: without it, Cortex's init_schema.sql creates uuid-ossp
+-- in public locally, and a generated schema built on that premise fails on
+-- the real project with `function public.uuid_generate_v4() does not exist`.
+create extension if not exists "uuid-ossp" with schema extensions;
+create extension if not exists pgcrypto   with schema extensions;
+
 grant usage on schema public, extensions to anon, authenticated, service_role;
+
+-- Supabase also puts `extensions` on the search_path of the roles that run
+-- migrations. That is why a migration can call uuid_generate_v4() unqualified
+-- even though the extension does not live in public — wacrm's 001 does
+-- exactly that. Set at database level so it applies to the sessions that
+-- apply the migrations, not just this one.
+do $$
+begin
+  execute format(
+    'alter database %I set search_path to %s',
+    current_database(),
+    '"$user", public, extensions'
+  );
+end $$;
+
 
 -- Columns Supabase's storage.buckets carries that the migrations set.
 alter table storage.buckets add column file_size_limit bigint;

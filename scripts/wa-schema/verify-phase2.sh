@@ -35,7 +35,9 @@ echo "==> building a clean database"
 $ADMIN -d postgres -c "drop database if exists $DB;" >/dev/null
 $ADMIN -d postgres -c "create database $DB;" >/dev/null
 $PSQL -v ON_ERROR_STOP=1 -f "$HERE/harness.sql" >/dev/null 2>&1
-for f in "$CORTEX"/supabase/migrations/*.sql; do
+# Skip Cortex's copies of the wacrm migrations — they are applied below
+# from this repo, which is where they are maintained.
+for f in $(ls "$CORTEX"/supabase/migrations/*.sql | grep -v '_wacrm_'); do
   $PSQL -v ON_ERROR_STOP=1 -f "$f" >/dev/null 2>&1
 done
 $PSQL -v ON_ERROR_STOP=1 -f "$ROOT/supabase/wa-schema.generated.sql" >/dev/null 2>&1

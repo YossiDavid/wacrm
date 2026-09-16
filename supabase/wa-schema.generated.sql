@@ -31,10 +31,10 @@ grant usage on schema wa to anon, authenticated, service_role;
 -- extra_search_path already lists it.
 create extension if not exists vector with schema extensions;
 
--- uuid-ossp is NOT created here: Cortex's init_schema.sql already installs
--- it into public. `if not exists` would silently ignore a schema clause
--- anyway, and relocating it could break Cortex's column defaults, so this
--- schema references public.uuid_generate_v4() where it actually lives.
+-- uuid-ossp is NOT created here: Supabase pre-installs it into `extensions`,
+-- which is why this schema calls extensions.uuid_generate_v4(). A bare
+-- `create extension if not exists` would be a no-op anyway and could not
+-- move it.
 
 --
 -- PostgreSQL database dump
@@ -261,7 +261,7 @@ SET default_table_access_method = heap;
 --
 
 CREATE TABLE wa.contacts (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     user_id uuid NOT NULL,
     phone text NOT NULL,
     name text,
@@ -1154,7 +1154,7 @@ $$;
 --
 
 CREATE TABLE wa.account_invitations (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     account_id uuid NOT NULL,
     token_hash text NOT NULL,
     role wa.account_role_enum NOT NULL,
@@ -1173,7 +1173,7 @@ CREATE TABLE wa.account_invitations (
 --
 
 CREATE TABLE wa.accounts (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     name text NOT NULL,
     owner_user_id uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -1282,7 +1282,7 @@ CREATE TABLE wa.api_keys (
 --
 
 CREATE TABLE wa.automation_logs (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     automation_id uuid NOT NULL,
     user_id uuid NOT NULL,
     contact_id uuid,
@@ -1301,7 +1301,7 @@ CREATE TABLE wa.automation_logs (
 --
 
 CREATE TABLE wa.automation_pending_executions (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     automation_id uuid NOT NULL,
     user_id uuid NOT NULL,
     contact_id uuid,
@@ -1324,7 +1324,7 @@ CREATE TABLE wa.automation_pending_executions (
 --
 
 CREATE TABLE wa.automation_steps (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     automation_id uuid NOT NULL,
     parent_step_id uuid,
     branch text,
@@ -1341,7 +1341,7 @@ CREATE TABLE wa.automation_steps (
 --
 
 CREATE TABLE wa.automations (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     user_id uuid NOT NULL,
     name text NOT NULL,
     description text,
@@ -1361,7 +1361,7 @@ CREATE TABLE wa.automations (
 --
 
 CREATE TABLE wa.broadcast_recipients (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     broadcast_id uuid NOT NULL,
     contact_id uuid,
     status text DEFAULT 'pending'::text NOT NULL,
@@ -1389,7 +1389,7 @@ COMMENT ON COLUMN wa.broadcast_recipients.template_params IS 'Positional body va
 --
 
 CREATE TABLE wa.broadcasts (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     user_id uuid NOT NULL,
     name text NOT NULL,
     template_name text NOT NULL,
@@ -1424,7 +1424,7 @@ COMMENT ON COLUMN wa.broadcasts.delivery_locked_at IS 'Set while a server-side d
 --
 
 CREATE TABLE wa.contact_custom_values (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     contact_id uuid NOT NULL,
     custom_field_id uuid NOT NULL,
     value text,
@@ -1437,7 +1437,7 @@ CREATE TABLE wa.contact_custom_values (
 --
 
 CREATE TABLE wa.contact_notes (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     contact_id uuid NOT NULL,
     user_id uuid NOT NULL,
     note_text text NOT NULL,
@@ -1451,7 +1451,7 @@ CREATE TABLE wa.contact_notes (
 --
 
 CREATE TABLE wa.contact_tags (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     contact_id uuid NOT NULL,
     tag_id uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now()
@@ -1463,7 +1463,7 @@ CREATE TABLE wa.contact_tags (
 --
 
 CREATE TABLE wa.conversations (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     user_id uuid NOT NULL,
     contact_id uuid NOT NULL,
     status text DEFAULT 'open'::text NOT NULL,
@@ -1486,7 +1486,7 @@ CREATE TABLE wa.conversations (
 --
 
 CREATE TABLE wa.custom_fields (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     user_id uuid NOT NULL,
     field_name text NOT NULL,
     field_type text DEFAULT 'text'::text NOT NULL,
@@ -1501,7 +1501,7 @@ CREATE TABLE wa.custom_fields (
 --
 
 CREATE TABLE wa.deals (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     user_id uuid NOT NULL,
     pipeline_id uuid NOT NULL,
     stage_id uuid NOT NULL,
@@ -1526,7 +1526,7 @@ CREATE TABLE wa.deals (
 --
 
 CREATE TABLE wa.flow_nodes (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     flow_id uuid NOT NULL,
     node_key text NOT NULL,
     node_type text NOT NULL,
@@ -1543,7 +1543,7 @@ CREATE TABLE wa.flow_nodes (
 --
 
 CREATE TABLE wa.flow_run_events (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     flow_run_id uuid NOT NULL,
     event_type text NOT NULL,
     node_key text,
@@ -1558,7 +1558,7 @@ CREATE TABLE wa.flow_run_events (
 --
 
 CREATE TABLE wa.flow_runs (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     flow_id uuid NOT NULL,
     user_id uuid NOT NULL,
     contact_id uuid,
@@ -1582,7 +1582,7 @@ CREATE TABLE wa.flow_runs (
 --
 
 CREATE TABLE wa.flows (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     user_id uuid NOT NULL,
     name text NOT NULL,
     description text,
@@ -1619,7 +1619,7 @@ CREATE TABLE wa.member_presence (
 --
 
 CREATE TABLE wa.message_reactions (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     message_id uuid NOT NULL,
     conversation_id uuid NOT NULL,
     actor_type text NOT NULL,
@@ -1635,7 +1635,7 @@ CREATE TABLE wa.message_reactions (
 --
 
 CREATE TABLE wa.message_templates (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     user_id uuid NOT NULL,
     name text NOT NULL,
     category text DEFAULT 'Marketing'::text NOT NULL,
@@ -1670,7 +1670,7 @@ CREATE TABLE wa.message_templates (
 --
 
 CREATE TABLE wa.messages (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     conversation_id uuid NOT NULL,
     sender_type text NOT NULL,
     sender_id uuid,
@@ -1728,7 +1728,7 @@ COMMENT ON COLUMN wa.messages.error_details IS 'Meta''s human-readable explanati
 --
 
 CREATE TABLE wa.notifications (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     account_id uuid NOT NULL,
     user_id uuid NOT NULL,
     type text DEFAULT 'conversation_assigned'::text NOT NULL,
@@ -1750,7 +1750,7 @@ ALTER TABLE ONLY wa.notifications REPLICA IDENTITY FULL;
 --
 
 CREATE TABLE wa.pipeline_stages (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     pipeline_id uuid NOT NULL,
     name text NOT NULL,
     "position" integer DEFAULT 0 NOT NULL,
@@ -1764,7 +1764,7 @@ CREATE TABLE wa.pipeline_stages (
 --
 
 CREATE TABLE wa.pipelines (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     user_id uuid NOT NULL,
     name text NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
@@ -1777,7 +1777,7 @@ CREATE TABLE wa.pipelines (
 --
 
 CREATE TABLE wa.profiles (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     user_id uuid NOT NULL,
     full_name text NOT NULL,
     email text NOT NULL,
@@ -1796,7 +1796,7 @@ CREATE TABLE wa.profiles (
 --
 
 CREATE TABLE wa.quick_replies (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     account_id uuid NOT NULL,
     user_id uuid NOT NULL,
     title text NOT NULL,
@@ -1814,7 +1814,7 @@ CREATE TABLE wa.quick_replies (
 --
 
 CREATE TABLE wa.tags (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     user_id uuid NOT NULL,
     name text NOT NULL,
     color text DEFAULT '#3b82f6'::text NOT NULL,
@@ -1846,7 +1846,7 @@ CREATE TABLE wa.webhook_endpoints (
 --
 
 CREATE TABLE wa.whatsapp_config (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     user_id uuid NOT NULL,
     phone_number_id text NOT NULL,
     waba_id text,
